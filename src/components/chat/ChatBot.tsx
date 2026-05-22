@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { SendIcon, CloseIcon } from "@/components/ui/Icons";
 
 interface Message {
@@ -17,13 +18,14 @@ interface ChatBotProps {
 }
 
 const QUICK_REPLIES = [
+  "有哪些相册 📷",
   "讲个笑话 😄",
   "今天天气怎么样？",
-  "给我一句鼓励的话",
-  "你叫什么名字？",
+  "帮我打开相册",
 ];
 
 export function ChatBot({ open, onClose, memberId }: ChatBotProps) {
+  const router = useRouter();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [loading, setLoading] = useState(false);
@@ -98,6 +100,14 @@ export function ChatBot({ open, onClose, memberId }: ChatBotProps) {
         createdAt: json.data.createdAt,
       };
       setMessages((prev) => [...prev, assistantMessage]);
+
+      // 处理导航指令
+      if (json.data.action?.type === "navigate") {
+        setTimeout(() => {
+          onClose();
+          router.push(json.data.action.url);
+        }, 800);
+      }
     } catch (error) {
       console.error("Send message error:", error);
       const errorMsg: Message = {
