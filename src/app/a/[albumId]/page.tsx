@@ -8,6 +8,8 @@ import { PhotoUploader } from "@/components/photo/PhotoUploader";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ToastProvider, useToast } from "@/components/ui/Toast";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { ChatFloatingButton } from "@/components/chat/ChatFloatingButton";
+import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { ImageIcon, TrashIcon } from "@/components/ui/Icons";
 
 interface Photo {
@@ -21,6 +23,7 @@ function AlbumPageContent() {
   const params = useParams();
   const router = useRouter();
   const albumId = params.albumId as string;
+  const [memberId] = useLocalStorage<string | null>("fam_album_memberId", null);
   const [album, setAlbum] = useState<{ name: string } | null>(null);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -196,7 +199,7 @@ function AlbumPageContent() {
             <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3">
               <button
                 onClick={toggleSelectMode}
-                className="px-4 py-2.5 rounded-lg bg-zinc-800 text-white text-sm font-medium active:scale-95 transition-transform shadow-sm"
+                className="px-4 py-2.5 rounded-lg bg-zinc-800 text-white text-sm font-medium active:scale-95 transition-transform shadow-sm whitespace-nowrap"
               >
                 批量删除
               </button>
@@ -261,6 +264,8 @@ function AlbumPageContent() {
         danger
         loading={batchDeleting}
       />
+
+      {memberId && <ChatFloatingButton memberId={memberId} />}
     </div>
   );
 }

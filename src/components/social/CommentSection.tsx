@@ -17,6 +17,7 @@ interface Comment {
 interface CommentSectionProps {
   photoId: string;
   memberId: string;
+  memberNickname: string;
   initialComments: Comment[];
   onRefresh: () => void;
 }
@@ -24,6 +25,7 @@ interface CommentSectionProps {
 export function CommentSection({
   photoId,
   memberId,
+  memberNickname,
   initialComments,
   onRefresh,
 }: CommentSectionProps) {
@@ -94,7 +96,7 @@ export function CommentSection({
               nickname={comment.nickname || "匿名"}
               content={comment.content}
               createdAt={comment.createdAt}
-              isOwner={comment.memberId === memberId}
+              isOwner={comment.nickname === memberNickname}
               onDelete={handleDelete}
             />
           ))}

@@ -1,7 +1,5 @@
 "use client";
 
-import { CloseIcon } from "@/components/ui/Icons";
-
 interface CommentItemProps {
   id: string;
   nickname?: string;
@@ -28,10 +26,12 @@ export function CommentItem({
   const avatarBg = AVATAR_COLORS[colorIndex];
 
   const time = new Date(createdAt);
-  const timeStr = time.toLocaleTimeString("zh-CN", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const y = time.getFullYear();
+  const m = String(time.getMonth() + 1).padStart(2, "0");
+  const d = String(time.getDate()).padStart(2, "0");
+  const h = String(time.getHours()).padStart(2, "0");
+  const min = String(time.getMinutes()).padStart(2, "0");
+  const timeStr = `${y}/${m}/${d} ${h}:${min}`;
 
   return (
     <div className="flex gap-3 py-3 group">
@@ -44,18 +44,18 @@ export function CommentItem({
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium text-zinc-800">{nickname}</span>
           <span className="text-xs text-zinc-400">{timeStr}</span>
+          {isOwner && onDelete && (
+            <button
+              onClick={() => onDelete(id)}
+              aria-label="删除评论"
+              className="text-xs text-red-400 shrink-0"
+            >
+              删除
+            </button>
+          )}
         </div>
         <p className="text-sm text-zinc-600 mt-0.5 break-words">{content}</p>
       </div>
-      {isOwner && onDelete && (
-        <button
-          onClick={() => onDelete(id)}
-          aria-label="删除评论"
-          className="w-8 h-8 flex items-center justify-center rounded-full text-zinc-300 hover:text-red-400 hover:bg-red-50 shrink-0"
-        >
-          <CloseIcon size={14} />
-        </button>
-      )}
     </div>
   );
 }

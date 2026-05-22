@@ -8,6 +8,7 @@ import { CommentSection } from "@/components/social/CommentSection";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { formatFileSize } from "@/lib/utils";
 import { ToastProvider, useToast } from "@/components/ui/Toast";
+import { ChatFloatingButton } from "@/components/chat/ChatFloatingButton";
 import { TrashIcon, ChevronLeftIcon, ChevronRightIcon, HeartIcon, ChevronLeft, ChevronRight } from "@/components/ui/Icons";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 
@@ -238,27 +239,7 @@ function PhotoPageContent() {
           }}
           onLoad={() => setImageLoaded(true)}
         />
-        
-        {/* 导航按钮 */}
-        {(photo.prevId || photo.nextId) && (
-          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
-            <button
-              onClick={() => photo.prevId && router.replace(`/photo/${photo.prevId}`)}
-              aria-label="上一张"
-              className={`w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/80 hover:bg-black/60 active:bg-black/70 transition-colors ${!photo.prevId ? "invisible" : ""}`}
-            >
-              <ChevronLeftIcon size={22} />
-            </button>
-            <button
-              onClick={() => photo.nextId && router.replace(`/photo/${photo.nextId}`)}
-              aria-label="下一张"
-              className={`w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/80 hover:bg-black/60 active:bg-black/70 transition-colors ${!photo.nextId ? "invisible" : ""}`}
-            >
-              <ChevronRightIcon size={22} />
-            </button>
-          </div>
-        )}
-        
+
         {/* 滑动提示 */}
         <div className="absolute top-3 left-1/2 -translate-x-1/2">
           <span className="text-white/40 text-xs">左右滑动切换照片</span>
@@ -289,7 +270,7 @@ function PhotoPageContent() {
           {photo.width && photo.height && <span>{photo.width}×{photo.height}</span>}
         </div>
         {memberId ? (
-          <CommentSection photoId={photo.id} memberId={memberId} initialComments={comments} onRefresh={fetchData} />
+          <CommentSection photoId={photo.id} memberId={memberId} memberNickname={memberNickname || ""} initialComments={comments} onRefresh={fetchData} />
         ) : (
           <div className="pt-2 pb-2">
             <h3 className="text-[13px] font-medium text-zinc-400 mb-1">评论（{comments.length}）</h3>
@@ -327,6 +308,7 @@ function PhotoPageContent() {
         danger
         loading={deleting}
       />
+      {memberId && <ChatFloatingButton memberId={memberId} />}
     </div>
   );
 }
