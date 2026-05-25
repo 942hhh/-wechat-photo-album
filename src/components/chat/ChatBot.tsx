@@ -18,10 +18,10 @@ interface ChatBotProps {
 }
 
 const QUICK_REPLIES = [
-  "有哪些相册 📷",
-  "讲个笑话 😄",
-  "今天天气怎么样？",
-  "帮我打开相册",
+  "有哪些相册？",
+  "介绍你自己",
+  "你能做什么？",
+  "有几个相册？",
 ];
 
 export function ChatBot({ open, onClose, memberId }: ChatBotProps) {

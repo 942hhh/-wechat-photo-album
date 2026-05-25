@@ -111,7 +111,7 @@ export function NicknameModal({ open, onJoin }: NicknameModalProps) {
               inputMode="text"
               autoComplete="nickname"
               autoFocus
-              placeholder="比如：妈妈、爸爸、小明…"
+              placeholder="比如：妈妈、爸爸..."
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
               onKeyDown={handleKeyDown}

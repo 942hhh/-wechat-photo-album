@@ -1,8 +1,8 @@
 import { NextRequest } from "next/server";
 import { getDb } from "@/lib/db";
-import { albums, photos } from "@/lib/db/schema";
+import { albums, photos, comments, likes } from "@/lib/db/schema";
 import { deleteAlbumDir } from "@/lib/storage/delete";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, inArray } from "drizzle-orm";
 
 export async function GET(
   _request: NextRequest,
@@ -37,11 +37,20 @@ export async function DELETE(
     return Response.json({ error: "相册不存在" }, { status: 404 });
   }
 
-  // Delete local files
-  deleteAlbumDir(id);
+  // 查出该相册下所有照片 id
+  const photoRows = await db.select({ id: photos.id }).from(photos).where(eq(photos.albumId, id));
+  const photoIds = photoRows.map((p) => p.id);
 
-  // CASCADE deletes photos, comments, likes
+  // 手动级联：先删评论和点赞，再删照片，最后删相册
+  if (photoIds.length > 0) {
+    await db.delete(comments).where(inArray(comments.photoId, photoIds));
+    await db.delete(likes).where(inArray(likes.photoId, photoIds));
+  }
+  await db.delete(photos).where(eq(photos.albumId, id));
   await db.delete(albums).where(eq(albums.id, id));
+
+  // 删除本地文件（最后执行，保证数据库先清理）
+  deleteAlbumDir(id);
 
   return Response.json({ data: { success: true } });
 }
