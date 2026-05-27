@@ -4,145 +4,128 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { ChatIcon } from "@/components/ui/Icons";
 import { ChatBot } from "./ChatBot";
 
-interface Position {
-  x: number;
-  y: number;
-}
-
 type Edge = "left" | "right" | "top" | "bottom";
 
 interface ChatFloatingButtonProps {
   memberId: string;
 }
 
+const BUTTON_SIZE = 38;
+const EDGE_MARGIN = 16;
+
 export function ChatFloatingButton({ memberId }: ChatFloatingButtonProps) {
   const [open, setOpen] = useState(false);
-  const [position, setPosition] = useState<Position>({ x: 0, y: 0 });
-  const [currentEdge, setCurrentEdge] = useState<Edge>("right");
-  const [isDragging, setIsDragging] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  // 用于 DOM 直控的位置引用 + 按钮元素引用
+  const positionRef = useRef({ x: 0, y: 0 });
+  const edgeRef = useRef<Edge>("right");
+  const isDraggingRef = useRef(false);
+  const initializedRef = useRef(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const dragStartPos = useRef<Position>({ x: 0, y: 0 });
-  const dragStartMouse = useRef<Position>({ x: 0, y: 0 });
 
-  const BUTTON_SIZE = 56;
-  const EDGE_MARGIN = 16;
-  const CORNER_THRESHOLD = 60;
-
-  const getInitialPosition = useCallback((): { pos: Position; edge: Edge } => {
-    if (typeof window === "undefined") return { pos: { x: 0, y: 0 }, edge: "right" };
-
-    return {
-      pos: {
-        x: window.innerWidth - BUTTON_SIZE - EDGE_MARGIN,
-        y: window.innerHeight - BUTTON_SIZE - EDGE_MARGIN - 70,
-      },
-      edge: "right",
-    };
+  // 通过 requestAnimationFrame 直接操作 DOM 实现跟手
+  const rafRef = useRef(0);
+  const syncDomPosition = useCallback(() => {
+    const el = buttonRef.current;
+    if (!el) return;
+    cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(() => {
+      const p = positionRef.current;
+      el.style.left = `${p.x}px`;
+      el.style.top = `${p.y}px`;
+    });
   }, []);
 
-  useEffect(() => {
-    const { pos, edge } = getInitialPosition();
-    setPosition(pos);
-    setCurrentEdge(edge);
-  }, [getInitialPosition]);
+  const constrainToEdge = useCallback(
+    (mouseX: number, mouseY: number) => {
+      if (typeof window === "undefined") return;
 
-  const constrainToEdge = useCallback((mouseX: number, mouseY: number, edge: Edge): { pos: Position; newEdge: Edge } => {
-    if (typeof window === "undefined") return { pos: position, newEdge: edge };
+      const sw = window.innerWidth;
+      const sh = window.innerHeight;
+      const half = BUTTON_SIZE / 2;
 
-    const screenWidth = window.innerWidth;
-    const screenHeight = window.innerHeight;
+      // 四条边上按钮中心的最优位置
+      const candidates: { x: number; y: number; edge: Edge; dist: number }[] = [];
 
-    let newX = position.x;
-    let newY = position.y;
-    let newEdge = edge;
+      // 左边
+      const leftY = Math.max(
+        EDGE_MARGIN + 60,
+        Math.min(mouseY, sh - BUTTON_SIZE - EDGE_MARGIN)
+      );
+      candidates.push({
+        x: EDGE_MARGIN,
+        y: leftY,
+        edge: "left",
+        dist: Math.abs(mouseX - EDGE_MARGIN - half) + Math.abs(mouseY - leftY - half),
+      });
 
-    switch (edge) {
-      case "left":
-        newX = EDGE_MARGIN;
-        newY = Math.max(EDGE_MARGIN + 60, Math.min(mouseY - BUTTON_SIZE / 2, screenHeight - BUTTON_SIZE - EDGE_MARGIN));
+      // 右边
+      const rightY = Math.max(
+        EDGE_MARGIN + 60,
+        Math.min(mouseY, sh - BUTTON_SIZE - EDGE_MARGIN)
+      );
+      candidates.push({
+        x: sw - BUTTON_SIZE - EDGE_MARGIN,
+        y: rightY,
+        edge: "right",
+        dist: Math.abs(mouseX - (sw - BUTTON_SIZE - EDGE_MARGIN) - half) +
+          Math.abs(mouseY - rightY - half),
+      });
 
-        if (newY <= EDGE_MARGIN + 60 + CORNER_THRESHOLD && mouseX < CORNER_THRESHOLD * 2) {
-          newEdge = "top";
-          newX = Math.max(EDGE_MARGIN, Math.min(mouseX - BUTTON_SIZE / 2, screenWidth - BUTTON_SIZE - EDGE_MARGIN));
-          newY = EDGE_MARGIN + 60;
-        } else if (newY >= screenHeight - BUTTON_SIZE - EDGE_MARGIN - CORNER_THRESHOLD && mouseX < CORNER_THRESHOLD * 2) {
-          newEdge = "bottom";
-          newX = Math.max(EDGE_MARGIN, Math.min(mouseX - BUTTON_SIZE / 2, screenWidth - BUTTON_SIZE - EDGE_MARGIN));
-          newY = screenHeight - BUTTON_SIZE - EDGE_MARGIN - 70;
-        }
-        break;
+      // 上边
+      const topX = Math.max(
+        EDGE_MARGIN,
+        Math.min(mouseX, sw - BUTTON_SIZE - EDGE_MARGIN)
+      );
+      candidates.push({
+        x: topX,
+        y: EDGE_MARGIN + 60,
+        edge: "top",
+        dist: Math.abs(mouseX - topX - half) +
+          Math.abs(mouseY - (EDGE_MARGIN + 60) - half),
+      });
 
-      case "right":
-        newX = screenWidth - BUTTON_SIZE - EDGE_MARGIN;
-        newY = Math.max(EDGE_MARGIN + 60, Math.min(mouseY - BUTTON_SIZE / 2, screenHeight - BUTTON_SIZE - EDGE_MARGIN));
+      // 下边
+      const bottomX = Math.max(
+        EDGE_MARGIN,
+        Math.min(mouseX, sw - BUTTON_SIZE - EDGE_MARGIN)
+      );
+      candidates.push({
+        x: bottomX,
+        y: sh - BUTTON_SIZE - EDGE_MARGIN - 70,
+        edge: "bottom",
+        dist: Math.abs(mouseX - bottomX - half) +
+          Math.abs(mouseY - (sh - BUTTON_SIZE - EDGE_MARGIN - 70) - half),
+      });
 
-        if (newY <= EDGE_MARGIN + 60 + CORNER_THRESHOLD && mouseX > screenWidth - CORNER_THRESHOLD * 2) {
-          newEdge = "top";
-          newX = Math.max(EDGE_MARGIN, Math.min(mouseX - BUTTON_SIZE / 2, screenWidth - BUTTON_SIZE - EDGE_MARGIN));
-          newY = EDGE_MARGIN + 60;
-        } else if (newY >= screenHeight - BUTTON_SIZE - EDGE_MARGIN - CORNER_THRESHOLD && mouseX > screenWidth - CORNER_THRESHOLD * 2) {
-          newEdge = "bottom";
-          newX = Math.max(EDGE_MARGIN, Math.min(mouseX - BUTTON_SIZE / 2, screenWidth - BUTTON_SIZE - EDGE_MARGIN));
-          newY = screenHeight - BUTTON_SIZE - EDGE_MARGIN - 70;
-        }
-        break;
+      // 选距离手指最近的边
+      const best = candidates.reduce((a, b) => (a.dist < b.dist ? a : b));
 
-      case "top":
-        newY = EDGE_MARGIN + 60;
-        newX = Math.max(EDGE_MARGIN, Math.min(mouseX - BUTTON_SIZE / 2, screenWidth - BUTTON_SIZE - EDGE_MARGIN));
+      positionRef.current = { x: best.x, y: best.y };
+      edgeRef.current = best.edge;
+      syncDomPosition();
+    },
+    [syncDomPosition]
+  );
 
-        if (newX <= EDGE_MARGIN + CORNER_THRESHOLD && mouseY < EDGE_MARGIN * 2 + 60 + CORNER_THRESHOLD) {
-          newEdge = "left";
-          newX = EDGE_MARGIN;
-          newY = Math.max(EDGE_MARGIN + 60, Math.min(mouseY - BUTTON_SIZE / 2, screenHeight - BUTTON_SIZE - EDGE_MARGIN));
-        } else if (newX >= screenWidth - BUTTON_SIZE - EDGE_MARGIN - CORNER_THRESHOLD && mouseY < EDGE_MARGIN * 2 + 60 + CORNER_THRESHOLD) {
-          newEdge = "right";
-          newX = screenWidth - BUTTON_SIZE - EDGE_MARGIN;
-          newY = Math.max(EDGE_MARGIN + 60, Math.min(mouseY - BUTTON_SIZE / 2, screenHeight - BUTTON_SIZE - EDGE_MARGIN));
-        }
-        break;
-
-      case "bottom":
-        newY = screenHeight - BUTTON_SIZE - EDGE_MARGIN - 70;
-        newX = Math.max(EDGE_MARGIN, Math.min(mouseX - BUTTON_SIZE / 2, screenWidth - BUTTON_SIZE - EDGE_MARGIN));
-
-        if (newX <= EDGE_MARGIN + CORNER_THRESHOLD && mouseY > screenHeight - EDGE_MARGIN * 2 - 70 - CORNER_THRESHOLD) {
-          newEdge = "left";
-          newX = EDGE_MARGIN;
-          newY = Math.max(EDGE_MARGIN + 60, Math.min(mouseY - BUTTON_SIZE / 2, screenHeight - BUTTON_SIZE - EDGE_MARGIN));
-        } else if (newX >= screenWidth - BUTTON_SIZE - EDGE_MARGIN - CORNER_THRESHOLD && mouseY > screenHeight - EDGE_MARGIN * 2 - 70 - CORNER_THRESHOLD) {
-          newEdge = "right";
-          newX = screenWidth - BUTTON_SIZE - EDGE_MARGIN;
-          newY = Math.max(EDGE_MARGIN + 60, Math.min(mouseY - BUTTON_SIZE / 2, screenHeight - BUTTON_SIZE - EDGE_MARGIN));
-        }
-        break;
-    }
-
-    return { pos: { x: newX, y: newY }, newEdge };
-  }, [position]);
-
-  const handleDragStart = useCallback((clientX: number, clientY: number) => {
-    setIsDragging(true);
-    dragStartMouse.current = { x: clientX, y: clientY };
-    dragStartPos.current = position;
-  }, [position]);
-
+  // 拖拽移动处理
   const handleDragMove = useCallback((clientX: number, clientY: number) => {
-    if (!isDragging) return;
-
-    const { pos, newEdge } = constrainToEdge(clientX, clientY, currentEdge);
-    setPosition(pos);
-    setCurrentEdge(newEdge);
-  }, [isDragging, currentEdge, constrainToEdge]);
+    if (!isDraggingRef.current) return;
+    constrainToEdge(clientX, clientY);
+  }, [constrainToEdge]);
 
   const handleDragEnd = useCallback(() => {
-    setIsDragging(false);
-  }, []);
+    if (!isDraggingRef.current) return;
+    isDraggingRef.current = false;
+    syncDomPosition();
+  }, [syncDomPosition]);
 
+  // 鼠标事件
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
-    handleDragStart(e.clientX, e.clientY);
-  }, [handleDragStart]);
+    isDraggingRef.current = true;
+  }, []);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     handleDragMove(e.clientX, e.clientY);
@@ -154,12 +137,12 @@ export function ChatFloatingButton({ memberId }: ChatFloatingButtonProps) {
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     e.preventDefault();
-    const touch = e.touches[0];
-    handleDragStart(touch.clientX, touch.clientY);
-  }, [handleDragStart]);
+    isDraggingRef.current = true;
+  }, []);
 
   const handleTouchMove = useCallback((e: TouchEvent) => {
     e.preventDefault();
+    if (!isDraggingRef.current) return;
     const touch = e.touches[0];
     handleDragMove(touch.clientX, touch.clientY);
   }, [handleDragMove]);
@@ -168,49 +151,110 @@ export function ChatFloatingButton({ memberId }: ChatFloatingButtonProps) {
     handleDragEnd();
   }, [handleDragEnd]);
 
+  // 全局事件绑定
   useEffect(() => {
-    if (isDragging) {
-      window.addEventListener("mousemove", handleMouseMove);
-      window.addEventListener("mouseup", handleMouseUp);
-      window.addEventListener("touchmove", handleTouchMove, { passive: false });
-      window.addEventListener("touchend", handleTouchEnd);
-    }
+    const onMouseMove = (e: MouseEvent) => handleMouseMove(e);
+    const onMouseUp = () => handleMouseUp();
+    const onTouchMove = (e: TouchEvent) => {
+      if (isDraggingRef.current) {
+        e.preventDefault();
+        handleTouchMove(e);
+      }
+    };
+    const onTouchEnd = () => handleTouchEnd();
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+    window.addEventListener("touchmove", onTouchMove, { passive: false });
+    window.addEventListener("touchend", onTouchEnd);
 
     return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-      window.removeEventListener("touchmove", handleTouchMove);
-      window.removeEventListener("touchend", handleTouchEnd);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("touchend", onTouchEnd);
     };
-  }, [isDragging, handleMouseMove, handleMouseUp, handleTouchMove, handleTouchEnd]);
+  }, [handleMouseMove, handleMouseUp, handleTouchMove, handleTouchEnd]);
+
+  // 初始化位置（仅首次渲染）
+  useEffect(() => {
+    if (initializedRef.current) return;
+    initializedRef.current = true;
+
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const initPos = {
+      x: w - BUTTON_SIZE - EDGE_MARGIN,
+      y: h - BUTTON_SIZE - EDGE_MARGIN - 70,
+    };
+    positionRef.current = initPos;
+    setMounted(true);
+  }, []);
+
+  // mounted 后同步 DOM 位置
+  useEffect(() => {
+    if (mounted) {
+      syncDomPosition();
+    }
+  }, [mounted, syncDomPosition]);
+
+  const wasDragging = useRef(false);
 
   const handleClick = useCallback(() => {
-    if (!isDragging) {
-      setOpen(true);
+    if (wasDragging.current) {
+      wasDragging.current = false;
+      return;
     }
-  }, [isDragging]);
+    setOpen(true);
+  }, []);
+
+  const handleMouseDownWrap = useCallback((e: React.MouseEvent) => {
+    wasDragging.current = false;
+    handleMouseDown(e);
+  }, [handleMouseDown]);
+
+  const handleTouchStartWrap = useCallback((e: React.TouchEvent) => {
+    wasDragging.current = false;
+    handleTouchStart(e);
+  }, [handleTouchStart]);
+
+  // 拖拽结束后标记（防止拖拽后的 click 事件）
+  useEffect(() => {
+    const markDragged = () => {
+      if (isDraggingRef.current) wasDragging.current = true;
+    };
+    const onTouchMove = () => { wasDragging.current = true; };
+    const onMouseMove = () => { if (isDraggingRef.current) wasDragging.current = true; };
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("touchmove", onTouchMove);
+    window.addEventListener("mouseup", markDragged);
+    window.addEventListener("touchend", markDragged);
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("mouseup", markDragged);
+      window.removeEventListener("touchend", markDragged);
+    };
+  }, []);
+
+  if (!mounted) return null;
 
   return (
     <>
       <button
         ref={buttonRef}
         onClick={handleClick}
-        onMouseDown={handleMouseDown}
-        onTouchStart={handleTouchStart}
-        className={`fixed w-14 h-14 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg flex items-center justify-center z-[9999] transition-all ${
-          isDragging
-            ? "scale-110 shadow-2xl cursor-grabbing"
-            : "hover:shadow-xl hover:scale-105 active:scale-95 cursor-grab"
-        }`}
+        onMouseDown={handleMouseDownWrap}
+        onTouchStart={handleTouchStartWrap}
+        className="fixed w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg flex items-center justify-center z-[9999] hover:shadow-xl hover:scale-105 active:scale-95 cursor-grab"
         style={{
-          left: `${position.x}px`,
-          top: `${position.y}px`,
           touchAction: "none",
           userSelect: "none",
+          WebkitUserSelect: "none",
         }}
         aria-label="打开聊天助手"
       >
-        <ChatIcon size={26} />
+        <ChatIcon size={18} />
       </button>
 
       <ChatBot open={open} onClose={() => setOpen(false)} memberId={memberId} />

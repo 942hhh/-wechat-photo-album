@@ -3,11 +3,11 @@ import { getDb } from "@/lib/db";
 import { albums } from "@/lib/db/schema";
 import { createAlbumSchema } from "@/lib/validators";
 import { generateId } from "@/lib/utils";
-import { desc } from "drizzle-orm";
+import { asc } from "drizzle-orm";
 
 export async function GET() {
   const db = getDb();
-  const data = await db.select().from(albums).orderBy(desc(albums.updatedAt));
+  const data = await db.select().from(albums).orderBy(asc(albums.createdAt));
   return Response.json({ data });
 }
 

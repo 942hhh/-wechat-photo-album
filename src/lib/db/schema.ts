@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, uniqueIndex, index } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 
 export const members = sqliteTable("members", {
@@ -64,12 +64,17 @@ export const comments = sqliteTable(
     memberId: text("member_id")
       .notNull()
       .references(() => members.id, { onDelete: "cascade" }),
+    parentId: text("parent_id"),
     content: text("content").notNull(),
+    likeCount: integer("like_count").notNull().default(0),
     createdAt: text("created_at")
       .notNull()
       .default(sql`(datetime('now'))`),
   },
-  (table) => [uniqueIndex("idx_comments_photo_id").on(table.photoId)]
+  (table) => [
+    index("idx_comments_photo_id").on(table.photoId),
+    index("idx_comments_parent_id").on(table.parentId),
+  ]
 );
 
 export const likes = sqliteTable(
@@ -77,8 +82,9 @@ export const likes = sqliteTable(
   {
     id: text("id").primaryKey(),
     photoId: text("photo_id")
-      .notNull()
       .references(() => photos.id, { onDelete: "cascade" }),
+    commentId: text("comment_id")
+      .references(() => comments.id, { onDelete: "cascade" }),
     memberId: text("member_id")
       .notNull()
       .references(() => members.id, { onDelete: "cascade" }),
@@ -88,6 +94,7 @@ export const likes = sqliteTable(
   },
   (table) => [
     uniqueIndex("idx_likes_photo_member").on(table.photoId, table.memberId),
+    uniqueIndex("idx_likes_comment_member").on(table.commentId, table.memberId),
   ]
 );
 

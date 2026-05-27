@@ -364,7 +364,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 获取历史消息
-    let history;
+    let history: { role: string; content: string }[] = [];
     try {
       history = await db
         .select()
@@ -467,7 +467,7 @@ export async function GET(request: NextRequest) {
 
     const db = getDb();
 
-    let messages;
+    let messages: { role: string; content: string; createdAt: string }[] = [];
     try {
       messages = await db
         .select()

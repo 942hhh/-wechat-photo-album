@@ -3,7 +3,7 @@ import { getDb } from "@/lib/db";
 import { photos, albums, members } from "@/lib/db/schema";
 import { uploadPhoto } from "@/lib/storage/upload";
 import { generateId } from "@/lib/utils";
-import { eq, desc } from "drizzle-orm";
+import { eq, asc } from "drizzle-orm";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
@@ -14,13 +14,27 @@ export async function GET(request: NextRequest) {
   const db = getDb();
   const data = await db
     .select({
-      ...photos,
+      id: photos.id,
+      albumId: photos.albumId,
+      uploadedBy: photos.uploadedBy,
+      r2KeyOriginal: photos.r2KeyOriginal,
+      r2KeyThumb: photos.r2KeyThumb,
+      originalUrl: photos.originalUrl,
+      thumbnailUrl: photos.thumbnailUrl,
+      width: photos.width,
+      height: photos.height,
+      fileSize: photos.fileSize,
+      contentType: photos.contentType,
+      description: photos.description,
+      likeCount: photos.likeCount,
+      commentCount: photos.commentCount,
+      createdAt: photos.createdAt,
       uploaderNickname: members.nickname,
     })
     .from(photos)
     .leftJoin(members, eq(photos.uploadedBy, members.id))
     .where(albumId ? eq(photos.albumId, albumId) : undefined)
-    .orderBy(desc(photos.createdAt))
+    .orderBy(asc(photos.createdAt))
     .limit(limit + 1);
 
   const hasMore = data.length > limit;

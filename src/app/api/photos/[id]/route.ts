@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { getDb } from "@/lib/db";
 import { photos, albums, members, comments, likes } from "@/lib/db/schema";
 import { deletePhoto } from "@/lib/storage/delete";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, lt, gt, or, asc } from "drizzle-orm";
 
 export async function GET(
   _request: NextRequest,
@@ -13,7 +13,21 @@ export async function GET(
 
   const [photo] = await db
     .select({
-      ...photos,
+      id: photos.id,
+      albumId: photos.albumId,
+      uploadedBy: photos.uploadedBy,
+      r2KeyOriginal: photos.r2KeyOriginal,
+      r2KeyThumb: photos.r2KeyThumb,
+      originalUrl: photos.originalUrl,
+      thumbnailUrl: photos.thumbnailUrl,
+      width: photos.width,
+      height: photos.height,
+      fileSize: photos.fileSize,
+      contentType: photos.contentType,
+      description: photos.description,
+      likeCount: photos.likeCount,
+      commentCount: photos.commentCount,
+      createdAt: photos.createdAt,
       uploaderNickname: members.nickname,
     })
     .from(photos)
@@ -30,10 +44,13 @@ export async function GET(
     .where(
       and(
         eq(photos.albumId, photo.albumId),
-        eq(photos.createdAt, photo.createdAt)
+        or(
+          lt(photos.createdAt, photo.createdAt),
+          and(eq(photos.createdAt, photo.createdAt), lt(photos.id, photo.id))
+        )
       )
     )
-    .orderBy(desc(photos.createdAt))
+    .orderBy(desc(photos.createdAt), desc(photos.id))
     .limit(1);
 
   const next = await db
@@ -42,10 +59,13 @@ export async function GET(
     .where(
       and(
         eq(photos.albumId, photo.albumId),
-        eq(photos.createdAt, photo.createdAt)
+        or(
+          gt(photos.createdAt, photo.createdAt),
+          and(eq(photos.createdAt, photo.createdAt), gt(photos.id, photo.id))
+        )
       )
     )
-    .orderBy(photos.createdAt)
+    .orderBy(asc(photos.createdAt), asc(photos.id))
     .limit(1);
 
   return Response.json({

@@ -93,12 +93,11 @@ function HomePage() {
     try {
       localStorage.setItem("fam_album_memberId", JSON.stringify(id));
       localStorage.setItem("fam_album_nickname", JSON.stringify(name));
+      setMemberId(id);
+      setNickname(name);
     } catch (e) {
       console.error("localStorage save error:", e);
     }
-    // 即使 localStorage 失败也推进到相册页面（本次会话有效）
-    setMemberId(id);
-    setNickname(name);
   }, []);
 
   if (!memberId) {

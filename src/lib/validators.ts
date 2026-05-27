@@ -11,6 +11,7 @@ export const createAlbumSchema = z.object({
 
 export const addCommentSchema = z.object({
   content: z.string().min(1).max(500).trim(),
+  parentId: z.string().optional(),
 });
 
 export type CreateMemberInput = z.infer<typeof createMemberSchema>;
