@@ -11,6 +11,21 @@ const TOOLS = [
   {
     type: "function" as const,
     function: {
+      name: "rename_album",
+      description: "重命名一个相册。用户说'把xx相册改名为yy''重命名xx相册为yy'时调用。",
+      parameters: {
+        type: "object",
+        properties: {
+          currentName: { type: "string", description: "当前相册名称" },
+          newName: { type: "string", description: "新的相册名称" },
+        },
+        required: ["currentName", "newName"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
       name: "list_albums",
       description: "获取家庭相册中所有的相册列表，包括相册名称、照片数量、创建时间",
       parameters: { type: "object", properties: {} },
@@ -73,6 +88,20 @@ const TOOLS = [
       },
     },
   },
+  {
+    type: "function" as const,
+    function: {
+      name: "search_web",
+      description: "搜索互联网获取实时信息。用于回答关于照片中事物的问题，如'图中是什么车''这是什么花''这是哪里'等需要识别和查找信息的问题。",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "搜索关键词，用中文" },
+        },
+        required: ["query"],
+      },
+    },
+  },
 ];
 
 const SYSTEM_PROMPT = `你是"小智"，一个温馨的家庭助手。
@@ -84,25 +113,31 @@ const SYSTEM_PROMPT = `你是"小智"，一个温馨的家庭助手。
 - open_album：打开指定相册（用户说"打开xx""看看xx""进入xx相册"时调用）
 - create_album：创建新相册（用户说"新建xx相册""创建xx"时调用）
 - delete_album：删除相册（危险操作，需要用户明确确认）
+- rename_album：重命名相册（用户说"把xx改名为yy""重命名xx"时调用）
 - query_photos：查询照片统计（用户问"xx上传了几张照片""谁上传了照片""一共有多少照片"时调用）
+- search_web：上网搜索信息。当用户问照片中事物的详细信息时（如"图中是什么车""这是什么植物""这是哪里"），根据已有的照片上下文和用户描述，调用此工具搜索网络获取详细信息。
 
 行为准则：
 - 像家人一样自然对话，用简体中文，适当使用表情符号
 - 用户提到相册操作时，直接调用工具执行，不要问"要不要帮你"
 - 对于删除操作，必须先向用户确认后再调用工具
+- 回答简洁，一般不超过300字`;
+
+const REMAINING_RULES = `
 - 对于实时信息（天气、新闻等），诚实告知查不到
-- 回答简洁，一般不超过200字
+- 回答简洁，一般不超过300字
 
 统计类问题处理：
-- "谁上传了照片""哪些人传了""哪个相册最多"→调用query_photos()不带参数，然后根据byUploader/byAlbum数据回答
+- "谁上传了照片""哪些人传了""哪个相册最多"→调用query_photos()不带参数
 - "xx上传了几张"→调用query_photos(uploaderNickname="xx")
 - "一共有多少张照片"→调用query_photos()，回答total
 - 查询结果为空时，友好告知"还没有照片哦～"
-- 用户意图模糊时（如"看看照片"），追问"想看哪个相册的呢？"
 
 空数据指引：
 - 没有相册时说"还没有创建相册哦，你可以对我说'新建一个相册'"
 - 没有照片时说"这个相册还是空的，快去上传第一张照片吧！"`;
+
+const FULL_SYSTEM_PROMPT = SYSTEM_PROMPT + REMAINING_RULES;
 
 // 工具函数的返回值，可能包含前端导航指令
 interface ToolResult {
@@ -244,6 +279,34 @@ async function executeTool(name: string, args: Record<string, unknown>): Promise
       return { data: { deleted: true, name: album.name } };
     }
 
+    case "rename_album": {
+      const currentName = String(args.currentName || "").trim();
+      const newName = String(args.newName || "").trim();
+
+      if (!currentName || !newName) {
+        return { data: { error: "当前名称和新名称不能为空" } };
+      }
+      if (newName.length > 50) {
+        return { data: { error: "相册名称不能超过50个字符" } };
+      }
+
+      let album = await db.select().from(albums).where(eq(albums.name, currentName)).get();
+      if (!album) {
+        album = await db.select().from(albums).where(like(albums.name, `%${currentName}%`)).get();
+      }
+
+      if (!album) {
+        return { data: { error: `未找到名为"${currentName}"的相册` } };
+      }
+
+      await db
+        .update(albums)
+        .set({ name: newName, updatedAt: new Date().toISOString() })
+        .where(eq(albums.id, album.id));
+
+      return { data: { renamed: true, oldName: album.name, newName } };
+    }
+
     case "query_photos": {
       const uploaderNickname = args.uploaderNickname ? String(args.uploaderNickname) : "";
       const albumName = args.albumName ? String(args.albumName) : "";
@@ -320,6 +383,58 @@ async function executeTool(name: string, args: Record<string, unknown>): Promise
       };
     }
 
+    case "search_web": {
+      const query = String(args.query || "");
+      if (!query) return { data: { error: "搜索关键词不能为空" } };
+
+      try {
+        const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+        const resp = await fetch(searchUrl, {
+          headers: {
+            "User-Agent":
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          },
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+        const html = await resp.text();
+        // 简单提取搜索结果
+        const snippets: string[] = [];
+        const snippetRegex = /class="result__snippet"[^>]*>(.*?)<\/a>/gi;
+        let match;
+        while ((match = snippetRegex.exec(html)) !== null) {
+          const text = match[1].replace(/<[^>]+>/g, "").trim();
+          if (text && text.length > 10) snippets.push(text);
+          if (snippets.length >= 5) break;
+        }
+
+        if (snippets.length === 0) {
+          return {
+            data: {
+              query,
+              results: "未找到相关信息，请根据你的知识回答。",
+            },
+          };
+        }
+
+        return {
+          data: {
+            query,
+            results: snippets.map((s, i) => `${i + 1}. ${s}`).join("\n"),
+            hint: "请基于以上搜索结果回答用户问题，用中文简要总结。",
+          },
+        };
+      } catch (err) {
+        console.error("[search_web] 搜索失败:", err);
+        return {
+          data: {
+            query,
+            results: "搜索服务暂时不可用，请根据你的训练数据知识回答。",
+          },
+        };
+      }
+    }
+
     default:
       return { data: { error: `未知工具: ${name}` } };
   }
@@ -380,7 +495,7 @@ export async function POST(request: NextRequest) {
 
     // 构建消息数组
     const messages: Record<string, unknown>[] = [
-      { role: "system", content: SYSTEM_PROMPT },
+      { role: "system", content: FULL_SYSTEM_PROMPT },
       ...history.map((msg) => ({
         role: msg.role as string,
         content: msg.content,
@@ -388,14 +503,13 @@ export async function POST(request: NextRequest) {
       { role: "user", content: message },
     ];
 
-    // 第一次调用 DeepSeek（带 tools）
-    const data = await callDeepSeek(messages, true);
-    const choice = data.choices[0]?.message;
-
     let assistantContent: string;
     let action: { type: "navigate"; url: string } | undefined;
 
-    // 如果模型调用了工具
+    // 走 tool calling 流程
+    const data = await callDeepSeek(messages, true);
+    const choice = data.choices[0]?.message;
+
     if (choice?.tool_calls && choice.tool_calls.length > 0) {
       messages.push({
         role: "assistant",
@@ -416,7 +530,6 @@ export async function POST(request: NextRequest) {
           content: JSON.stringify(result.data),
         });
 
-        // 取最后一个工具的导航指令
         if (result.action) {
           action = result.action;
         }

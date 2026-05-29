@@ -40,6 +40,9 @@ yarn-error.log*
 /public/uploads/
 /data/
 
+# runtime scripts
+.runtime/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

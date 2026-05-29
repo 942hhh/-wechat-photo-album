@@ -4,6 +4,8 @@ import { albums, photos, comments, likes } from "@/lib/db/schema";
 import { deleteAlbumDir } from "@/lib/storage/delete";
 import { eq, desc, inArray } from "drizzle-orm";
 
+const RENAME_LIMIT = 50;
+
 export async function GET(
   _request: NextRequest,
   ctx: RouteContext<"/api/albums/[id]">
@@ -53,4 +55,34 @@ export async function DELETE(
   deleteAlbumDir(id);
 
   return Response.json({ data: { success: true } });
+}
+
+export async function PATCH(
+  request: NextRequest,
+  ctx: RouteContext<"/api/albums/[id]">
+) {
+  const { id } = await ctx.params;
+  const body = await request.json();
+  const { name } = body;
+
+  if (!name || typeof name !== "string" || !name.trim()) {
+    return Response.json({ error: "相册名称不能为空" }, { status: 400 });
+  }
+  if (name.trim().length > RENAME_LIMIT) {
+    return Response.json({ error: `相册名称不能超过${RENAME_LIMIT}个字符` }, { status: 400 });
+  }
+
+  const db = getDb();
+
+  const [album] = await db.select().from(albums).where(eq(albums.id, id));
+  if (!album) {
+    return Response.json({ error: "相册不存在" }, { status: 404 });
+  }
+
+  await db
+    .update(albums)
+    .set({ name: name.trim(), updatedAt: new Date().toISOString() })
+    .where(eq(albums.id, id));
+
+  return Response.json({ data: { id, name: name.trim() } });
 }

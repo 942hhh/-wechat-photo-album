@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { ChevronLeftIcon } from "@/components/ui/Icons";
 
 interface AppHeaderProps {
-  title: string;
+  title: string | React.ReactNode;
   showBack?: boolean;
   backHref?: string;
   rightAction?: React.ReactNode;

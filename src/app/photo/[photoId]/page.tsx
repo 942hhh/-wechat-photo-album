@@ -447,7 +447,17 @@ function PhotoPageContent() {
         </div>
         {photo.description && <p className="text-[15px] text-zinc-700">{photo.description}</p>}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-zinc-400">
-          <span>{photo.uploaderNickname || "匿名"} 上传</span>
+          <span>
+            {photo.uploaderNickname || "匿名"}{" "}
+            {(() => {
+              const d = new Date(photo.createdAt);
+              const y = d.getFullYear();
+              const m = String(d.getMonth() + 1).padStart(2, "0");
+              const day = String(d.getDate()).padStart(2, "0");
+              return `${y}/${m}/${day}`;
+            })()}{" "}
+            上传
+          </span>
           {photo.fileSize && <span>{formatFileSize(photo.fileSize)}</span>}
           {photo.width && photo.height && <span>{photo.width}×{photo.height}</span>}
         </div>

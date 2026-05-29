@@ -34,6 +34,10 @@ function AlbumPageContent() {
   const [batchDeleting, setBatchDeleting] = useState(false);
   const [showBatchDeleteConfirm, setShowBatchDeleteConfirm] = useState(false);
 
+  // 重命名相册
+  const [renaming, setRenaming] = useState(false);
+  const [newName, setNewName] = useState("");
+
   const { toast } = useToast();
 
   const fetchPhotos = useCallback(async () => {
@@ -89,6 +93,38 @@ function AlbumPageContent() {
       setSelectMode(true);
       setSelectedIds(new Set());
     }
+  };
+
+  const handleRename = useCallback(async () => {
+    const trimmed = newName.trim();
+    if (!trimmed || trimmed === album?.name) {
+      setRenaming(false);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/albums/${albumId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: trimmed }),
+      });
+      if (!res.ok) {
+        const json = await res.json();
+        toast(json.error || "重命名失败");
+        return;
+      }
+      const json = await res.json();
+      setAlbum(json.data);
+      toast("相册已重命名");
+    } catch {
+      toast("重命名失败");
+    } finally {
+      setRenaming(false);
+    }
+  }, [newName, album?.name, albumId, toast]);
+
+  const startRename = () => {
+    setNewName(album?.name || "");
+    setRenaming(true);
   };
 
   const handleToggleSelect = (id: string) => {
@@ -163,7 +199,31 @@ function AlbumPageContent() {
   return (
     <div className="flex-1 flex flex-col">
       <AppHeader
-        title={selectMode ? `已选 ${selectedIds.size} 张` : (album?.name || "相册")}
+        title={
+          selectMode ? (
+            `已选 ${selectedIds.size} 张`
+          ) : renaming ? (
+            <input
+              autoFocus
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onBlur={handleRename}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleRename();
+                if (e.key === "Escape") setRenaming(false);
+              }}
+              maxLength={50}
+              className="w-30 text-center text-[17px] font-semibold bg-transparent border-b-2 border-[#07c160] outline-none"
+            />
+          ) : (
+            <span
+              onClick={startRename}
+              className="cursor-pointer"
+            >
+              {album?.name || "相册"}
+            </span>
+          )
+        }
         showBack
         backHref="/"
         rightAction={headerRight}

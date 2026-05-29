@@ -15,7 +15,6 @@ export async function GET(
     return new Response("Not found", { status: 404 });
   }
 
-  const buffer = fs.readFileSync(filePath);
   const ext = path.extname(filePath).toLowerCase();
   const contentType: Record<string, string> = {
     ".jpg": "image/jpeg",
@@ -25,7 +24,8 @@ export async function GET(
     ".gif": "image/gif",
   };
 
-  return new Response(buffer, {
+  const stream = fs.createReadStream(filePath);
+  return new Response(stream as unknown as ReadableStream, {
     headers: {
       "Content-Type": contentType[ext] || "application/octet-stream",
       "Cache-Control": "public, max-age=31536000, immutable",
